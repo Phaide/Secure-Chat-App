@@ -1,0 +1,4 @@
+rsa==4.0
+wxPython==4.0.7.post2
+requests==2.23.0
+pycryptodome==3.9.7
