@@ -38,7 +38,7 @@ SUbsequence response definitions will only detail the expected value of the `dat
 
 **Definition**
 
-"GET /nodes"
+`GET /nodes`
 
 **Response**
 
