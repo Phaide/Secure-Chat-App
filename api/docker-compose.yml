@@ -1,0 +1,9 @@
+version: "3.7"
+
+services:
+  node-registry:
+    build: .
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - 42202:42202

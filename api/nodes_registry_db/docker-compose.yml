@@ -1,0 +1,20 @@
+version: '3.1'
+
+services:
+
+  db:
+    image: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: DjS8b79b6pMjjgq # Change this password !
+      MYSQL_DATABASE: nodes_registry_db
+    ports:
+      - 3306:3306
+      - 33060:33060
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
