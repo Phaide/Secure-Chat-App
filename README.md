@@ -10,3 +10,8 @@ This project is still a work in progress. You should not use the software right 
 I am no cybersecurity expert. This project is more of a fun project for me to learn and explore rather than a production-ready solution.
 
 If you wish to contribute, please fork this repo and/or send pull requests. Thank you :)
+
+## Usage
+
+There is two modes of usage : client and server (api).
+Please read the corresponding READMEs to learn more.
