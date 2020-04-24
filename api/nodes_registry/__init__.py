@@ -1,24 +1,25 @@
 import os
-import rsa
 import shelve
 import markdown
 import base64
 
-from Crypto.Hash import SHA3_512
-from Crypto.Cipher import PKCS1_OAEP
+# Documentation : https://pycryptodome.readthedocs.io/en/latest/
+from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
+from Crypto.Signature import pkcs1_15
 
 import mysql.connector
 
 from flask import Flask, g
 from flask_restful import Resource, Api, reqparse
 
-import keygen
-keygen.main()
-
 app = Flask(__name__)
 
 api = Api(app)
+
+def log(data):
+    with open("log.txt", "a") as log:
+        log.write(str(data) + "\n")
 
 def get_db():
     #db = mysql.connector.connect(
@@ -38,14 +39,6 @@ def teardown(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
-
-def get_public_key():
-    import publickey
-    return publickey.pk
-
-def get_private_key():
-    import privatekey
-    return privatekey.pk
 
 @app.route("/")
 def index():
@@ -70,28 +63,44 @@ class NodesList(Resource):
     def post(self):
         parser = reqparse.RequestParser()
 
-        parser.add_argument("pass", required = True)
-        parser.add_argument("uuid", required = True)
-        parser.add_argument("pubkey", required = True)
+        parser.add_argument("pubkey_n", required = True)
+        parser.add_argument("pubkey_e", required = True)
         parser.add_argument("address", required = True)
-        parser.add_argument("port", required = True)
+        parser.add_argument("hash", required = True)
+        parser.add_argument("sig", required = True)
 
         args = parser.parse_args()
 
-        privkey = RSA.construct(get_private_key(), True)
+        # Load the key, and verify it is correct. Returns HTTP 400 Bad request upon error
+        try:
+            try:
+                nodePubkey = RSA.construct((int(args["pubkey_n"]), int(args["pubkey_e"])), True)
+            except ValueError:
+                raise ValueError
+            except Exception as e:
+            if (nodePubkey.size_in_bits() != 4096):
+                raise ValueError
+        except ValueError:
+            return {"message": "Invalid public key", "data": args}, 400
 
-        for key in args:
-            args[key] = PKCS1_OAEP.new(privkey, SHA3_512).decrypt(base64.b64decode(args[key].encode("utf-8")), privkey)
+        # Create a new hash object of the request's pubkey
+        h = SHA256.new("".join([str(nodePubkey.n), str(nodePubkey.e)]).encode("utf-8"))
+
+        # Verify authentication. Returns HTTP 401 Unauthorized on error.
+        try:
+            if (h.hexdigest() == args["hash"]):
+                pkcs1_15.new(nodePubkey).verify(h, base64.b64decode(args["sig"].encode("utf-8")))
+            else:
+                raise ValueError
+        except ValueError:
+            return {"message": "Authentication failed", "data": args}, 401
+
+        args.pop("sig")
 
         shelf = get_db()
-        shelf[args["uuid"]] = args
+        shelf[args["pubkey_n"]] = args
 
         return {"message": "Node registered", "data": args}, 201
 
-class PublicKey(Resource):
-    def get(self):
-        return {"message": "Public key gathered", "data": get_public_key()}, 200
-
 
 api.add_resource(NodesList, "/nodes")
-api.add_resource(PublicKey, "/key")
