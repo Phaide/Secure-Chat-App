@@ -11,11 +11,12 @@ import requests
 import wx
 import wx.xrc
 import rsa # Documentation : https://stuvel.eu/python-rsa-doc/
-from Crypto.Cipher import PKCS1_OAEP, AES
+
+# Documentation : https://pycryptodome.readthedocs.io/en/latest/
+from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
-from Crypto.Hash import SHA3_512
-from Crypto.Random import get_random_bytes
-#from Crypto.Signature import pksc1_15
+from Crypto.Hash import SHA256
+from Crypto.Signature import pkcs1_15
 
 # Import the display file
 import wxdisplay
@@ -88,7 +89,8 @@ class Display:
         def post_key_load(self):
             if self.node.check_enc_dec():
                 # Deduce the current node's id and auth (pass) from the private key's RSA modulus' hash (a public value)
-                self.node.id = Encryption.hash(str(self.node.privateKey.n))[:self.node.ID_LEN]
+                self.node.id = SHA256.new(str(self.node.privateKey.n).encode("utf-8")).hexdigest()[:self.node.ID_LEN]
+                print(self.node.id)
                 # Set a name for the node
                 self.node.set_name()
                 # And display it
@@ -134,13 +136,13 @@ class Display:
             self.loadingInfo2_staticText.SetForegroundColour(wx.Colour(0, 0, 0))
             self.Refresh()
 
-            from multiprocessing import cpu_count
-            # Create an RSA key.
-            # cpu_count() allows the algorithm to create as many threads as there are cpu cores available.
-            pubkey, privkey = rsa.newkeys(self.node.KEYS_LENGTH, True, cpu_count())
+            # Create a new RSA private key.
+            privkey = RSA.generate(self.node.KEYS_LENGTH)
+            pubkey = privkey.publickey()
 
             # Deduce an id from the private key's hash.
-            id = Encryption.hash(str(privkey))[:self.node.ID_LEN]
+            id = SHA256.new("".join([pubkey.n, pubkey.e]).encode("utf-8")).hexdigest()[:self.node.ID_LEN]
+            print("ID: " + id)
 
             with open(u"{}/private_{}.pem".format(event.GetPath(), id), "wb") as fl:
                 fl.write(privkey.save_pkcs1())
@@ -294,7 +296,6 @@ class Networking:
     MY_ADDRESS = "192.168.0.48"
 
     NODE_SERVER_API_NODES_ENDPOINT = "http://192.168.0.48:42202/nodes"
-    NODE_SERVER_API_KEY_ENDPOINT = "http://192.168.0.48:42202/key"
 
     def __init__(self, o_node, host, port):
         self.node = o_node
@@ -335,36 +336,23 @@ class Networking:
             connection, address = serverSocket.accept()
             print(recvall(connection))
 
-    def gather_server_pubkey(self):
-        r = requests.get(self.NODE_SERVER_API_KEY_ENDPOINT)
-        if r.status_code != 200:
-            print("Could not gather server's public key.")
-            return
-        # Creates a new RSA object from the server's pubkey.
-        return RSA.construct(tuple(int(i) for i in r.json()['data']), True)
-
     def submit_identity_to_node_server(self):
         """
         Submit own identity to the node registry server, via its API.
         """
-        info = {"uuid": self.node.id, "pubkey": self.node.publicKey, "address": self.MY_ADDRESS, "port": self.PORT}
+        info = {"pubkey_n": str(self.node.publicKey.n), "pubkey_e": str(self.node.publicKey.e), "address": ":".join([str(self.MY_ADDRESS), str(self.PORT)])}
 
-        aeskey = get_random_bytes(32)
-        cipher = AES.new(aeskey, AES.MODE_EAX)
-        nonce = cipher.nonce
+        # Hash object of the pubkey
+        h = SHA256.new("".join([info["pubkey_n"], info["pubkey_e"]]).encode("utf-8"))
 
-        for key in info:
-            ciphertext, tag = cipher.encrypt_and_digest(str(info[key]).encode("utf-8"))
-            info[key] = [ciphertext, tag]
-            #info[key] = base64.b64encode(PKCS1_OAEP.new(serverPublicKey, SHA3_512).encrypt(str(info[key]).encode("utf-8"))).decode("utf-8")
-
-        signedHash = Encryption.hash(b"".join([info[key][0] + info[key][1] for key in info]))
-
-        info["auth"] = (aeskey, nonce)
+        # Hexadecimal digest of the above hash
+        info["hash"] = h.hexdigest()
+        # And its signature encoded in base64
+        info["sig"] = base64.b64encode(pkcs1_15.new(self.node.privateKey).sign(h)).decode("utf-8")
 
         r = requests.post(self.NODE_SERVER_API_NODES_ENDPOINT, data = info)
         if r.status_code != 201:
-            print("Could not submit identity to server. Please verify its IP address is correct and that it is running.")
+            print("Could not submit identity to server ({}). Please verify its IP address is correct and that it is running.".format(r.status_code))
             return
 
         return
@@ -385,20 +373,6 @@ class Networking:
         clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         clientsocket.connect((self.HOST, self.PORT))
         clientsocket.send(message)
-
-
-class Encryption:
-
-    @staticmethod
-    def hash(data, charset = "utf-8"):
-        """
-        Returns the hash of inputed data.
-        """
-        data = data if type(data) == bytes else str(data).encode(charset)
-        # Creates a sha_512 hash object and adds to it the aggregated byte-encoded data and salt
-        hash = sha256(data)
-        # Returns the hexadecimal digest (hash)
-        return hash.hexdigest()
 
 
 if __name__ == '__main__':

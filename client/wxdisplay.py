@@ -68,7 +68,7 @@ class MainMenu ( wx.Frame ):
 
 		rsaKeys_sbSizer = wx.StaticBoxSizer( wx.StaticBox( self, wx.ID_ANY, u"RSA Keys" ), wx.VERTICAL )
 
-		self.rsaPublicKeyStatus_staticText = wx.StaticText( rsaKeys_sbSizer.GetStaticBox(), wx.ID_ANY, u"RSA PublicKey status: ", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.rsaPublicKeyStatus_staticText = wx.StaticText( rsaKeys_sbSizer.GetStaticBox(), wx.ID_ANY, u"RSA PublicKey:", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.rsaPublicKeyStatus_staticText.Wrap( -1 )
 
 		rsaKeys_sbSizer.Add( self.rsaPublicKeyStatus_staticText, 0, wx.ALL, 5 )
@@ -78,7 +78,7 @@ class MainMenu ( wx.Frame ):
 
 		rsaKeys_sbSizer.Add( self.publicKey_filePicker, 0, wx.ALL|wx.EXPAND, 5 )
 
-		self.rsaPrivateKeyStatus_staticText = wx.StaticText( rsaKeys_sbSizer.GetStaticBox(), wx.ID_ANY, u"RSA PrivateKey status: ", wx.DefaultPosition, wx.DefaultSize, 0 )
+		self.rsaPrivateKeyStatus_staticText = wx.StaticText( rsaKeys_sbSizer.GetStaticBox(), wx.ID_ANY, u"RSA PrivateKey: ", wx.DefaultPosition, wx.DefaultSize, 0 )
 		self.rsaPrivateKeyStatus_staticText.Wrap( -1 )
 
 		rsaKeys_sbSizer.Add( self.rsaPrivateKeyStatus_staticText, 0, wx.ALL, 5 )
