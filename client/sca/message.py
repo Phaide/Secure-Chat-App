@@ -1,0 +1,274 @@
+# -*- coding: UTF8 -*-
+
+from dataclasses import dataclass
+
+from .encryption import Encryption
+from .structures import Structures
+from .utils import Utils
+from .node import Node
+
+
+@dataclass
+class Meta:
+    time_sent: int = None
+    time_received: int = None
+    digest: str = None
+    identifier: str = None
+
+
+class Message:
+
+    def __init__(self):
+        """
+        Instantiate a new empty object.
+        Use the methods to set its values.
+        """
+        self.content: str = None
+        self.meta = Meta()
+        self.author: Node = None
+
+    # Validation section
+
+    @staticmethod
+    def is_received_message_valid(message_data: dict) -> bool:
+        """
+        Performs tests on the data passed to check if the message we just received is correct.
+
+        :param dict message_data: A message, as a dict.
+        :return bool: True if it is, False otherwise.
+        """
+
+        if type(message_data) is not dict:
+            return False
+
+        if not Utils.validate_fields(message_data, Structures.received_message_structure):
+            return False
+
+        return True
+
+    @staticmethod
+    def is_message_valid_for_raw_storage(message_data: dict) -> bool:
+        """
+        Performs tests on the object to see if it is valid for storage in the "raw_messages" database.
+
+        :param dict message_data: A message, as a dict.
+        :return bool: True if it is, False otherwise.
+        """
+
+        if type(message_data) is not dict:
+            return False
+
+        if not Utils.validate_fields(message_data, Structures.raw_stored_message_structure):
+            return False
+
+        return True
+
+    # Class methods section
+
+    @classmethod
+    def from_dict_encrypted(cls, aes_key, message_data: dict) -> object or None:
+        """
+        Creates and returns a new message object created from the dictionary "message_data".
+
+        :param aes_key: A AES cipher (object).
+        :param dict message_data: A message information, as a dictionary.
+        :return object|None: A message object or None.
+        """
+        if not cls.is_received_message_valid(message_data):
+            return
+
+        try:
+            content = Encryption.decrypt_symmetric(aes_key, message_data["content"], message_data["meta"]["digest"])
+            # Content is now a bytes object, unless the decryption failed.
+        except (ValueError, KeyError):
+            return
+        # Convert content to a string.
+        content = Encryption.decode_bytes(content)
+
+        message_data["content"] = content
+
+        return cls.from_dict(message_data)
+
+    @classmethod
+    def from_dict(cls, message_data: dict) -> object or None:
+        """
+        Creates a new Message object from a dictionary (clear message).
+
+        :param dict message_data: A message, as a dict.
+        :return object|None: A new message object or None.
+        """
+        if not cls.is_received_message_valid(message_data):
+            return
+
+        msg = cls()
+
+        msg.set_message(message_data["content"])
+        msg.set_time_sent(message_data["time_sent"])
+        msg.set_author(message_data["author"])
+
+        return msg
+
+    # Attributes setters section
+
+    def set_message(self, message: str) -> None:
+        """
+        Sets the message's content (its text).
+
+        :param str message: A new message, can be of roughly any length.
+        """
+        self.content = message
+
+    def set_time_sent(self, timestamp: int = None) -> None:
+        """
+        Sets the "date_sent" timestamp as the actual time.
+        """
+        if timestamp is not None:
+            self.meta.time_sent = timestamp
+        else:
+            self.meta.time_sent = Utils.get_timestamp()
+
+    def set_time_received(self) -> None:
+        """
+        Sets the message's "time_received" timestamp as the actual time.
+        """
+        self.meta.time_received = Utils.get_timestamp()
+
+    def set_author(self, author: Node):
+        """
+        Sets the "author" attribute.
+
+        :param Node author: A Node object.
+        """
+        self.author = author
+
+    def set_digest(self, digest: str) -> None:
+        """
+        Sets the "message["meta"]["digest"]" attribute.
+
+        :param str digest: The digest of the encrypted message.
+        """
+        self.meta.digest = digest
+
+    def set_id(self) -> None:
+        """
+        Sets the message's id.
+        """
+        self.meta.id = self.get_id()
+
+    # Attributes getters section
+
+    def get_message(self) -> str or None:
+        """
+        Returns the message's content (its text).
+
+        :return str: The message's text (if set), None otherwise.
+        """
+        return self.content
+
+    def get_time_received(self) -> str or None:
+        """
+        Returns the message's "time_received" value.
+
+        :return str\None: The received timestamp as a string if it is set, None otherwise.
+        """
+        return self.meta.time_received
+
+    def get_id(self):
+        """
+        Returns the message's id.
+        """
+        return Message.get_id_from_message(self.as_dictionary())
+
+    @staticmethod
+    def get_id_from_message(message: dict) -> str:
+        """
+        Gets an ID from a message's information, namely the time_sent and the digest.
+
+        :param dict message: A message information, as a dictionary.
+        :return str: An identifier for this message.
+        """
+        assert message["meta"]["time_sent"]
+        assert message["meta"]["digest"]
+        identifier = Encryption.hash_iterable([message["meta"]["time_sent"], message["meta"]["digest"]]).hexdigest()
+        return identifier
+
+    # Export section
+
+    def as_dictionary(self) -> dict:
+        """
+        Returns the message as a dictionary.
+
+        :return dict: The message, as a dictionary.
+        """
+        dic = {
+            "content": self.content,
+            "meta": {
+                "time_sent": self.meta.time_sent,
+                "time_received": self.meta.time_received,
+                "digest": self.meta.digest,
+                "id": self.meta.identifier
+            },
+            "author": self.author.as_dictionary()
+        }
+        return dic
+
+    def to_json(self) -> str:
+        """
+        Converts the current object to a JSON-encoded string, ready to be sent over the network and/or stored.
+
+        :return str: A JSON-encoded string.
+        """
+        return Utils.encode_json(self.as_dictionary())
+
+
+class OwnMessage(Message):
+
+    def __init__(self):
+        Message.__init__(self)
+        self.is_prepared: bool = False  # Should be read-only
+
+    @staticmethod
+    def is_prepared_message_valid(message_data: dict) -> bool:
+        """
+        Performs tests on the data passed to check if it is a correct (prepared) message.
+
+        :param dict message_data: A message, as a dict.
+        :return bool: True if it is, False otherwise.
+        """
+
+        if type(message_data) is not dict:
+            return False
+
+        if not Utils.validate_fields(message_data, Structures.prepared_message_structure):
+            return False
+
+        return True
+
+    def set_aes(self, master_node):
+        assert type(self.author) == type(Node)
+        master_node.conversations.get_aes(master_node.rsa_private_key, self.author.get_id())
+
+    def prepare(self, aes) -> None:
+        """
+        Prepare message: encrypts and sets values.
+        Use the "to_json" method to get a JSON-encoded string for network communication and storage.
+
+        :param aes: AES key used for symmetric encryption.
+        """
+        assert type(self.content) == str
+        # Next, encode and encrypt the content.
+        encoded_content = Encryption.encode_string(self.content)
+        se_en_content, digest = Encryption.encrypt_symmetric(aes, encoded_content)
+        self.set_message(se_en_content)
+        self.set_digest(digest)
+        self.set_id()
+
+        self.is_prepared = True
+
+    def is_preparation_done(self) -> bool:
+        """
+        Returns a status code as a boolean.
+
+        :return bool: True if the node is properly prepared, False otherwise.
+        """
+        return OwnMessage.is_prepared_message_valid(self.as_dictionary())

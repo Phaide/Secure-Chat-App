@@ -1,6 +1,8 @@
+# -*- coding: UTF8 -*-
+
 # Atom regex : ([A-Za-z]{1,})
 
-dictionnary = {
+dictionary = {
     "adjectives": [ # Source : https://enchantedlearning.com/wordlist/adjectivesforpeople.shtml
         "able",
         "abnormal",
@@ -661,9 +663,10 @@ dictionnary = {
     ]
 }
 
+
 def count_possibilities(dic):
     """
-    Count how many unique names can be created from the combinations of each lists contained in the passed dictionnary.
+    Count how many unique names can be created from the combinations of each lists contained in the passed dictionary.
     """
     total = 0
     for value in dic:
