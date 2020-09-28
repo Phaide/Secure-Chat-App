@@ -1,3 +1,5 @@
+# THIS IS A WORK IN PROGRESS
+
 # Introduction
 
 SCA is a decentralized communication application.
