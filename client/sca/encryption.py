@@ -9,7 +9,9 @@ from Crypto.Signature import pkcs1_15
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
 
+from .structures import Structures
 from .config import Config
+from .utils import Utils
 from .node import Node
 
 
@@ -44,25 +46,25 @@ class Encryption:
         return private_key.publickey()
 
     @staticmethod
-    def construct_rsa_object(n, e, d=None, p=None, q=None) -> RSA.RsaKey:
+    def construct_rsa_object(n: int, e: int, d: int = None, p: int = None, q: int = None) -> RSA.RsaKey:
         """
         Construct and returns a RSA key.
         If you want a public key, pass n and e.
         If you want a private key, also pass d, p and q.
 
-        :param n: Modulus.
-        :param e: Public exponent.
-        :param p: First factor.
-        :param q: Second factor.
-        :param d: Private exponent.
+        :param int n: Modulus.
+        :param int e: Public exponent.
+        :param int p: First factor.
+        :param int q: Second factor.
+        :param int d: Private exponent.
         :return RSA.RsaKey: A RSA key, public or private depending on the arguments passed.
         """
         # If d, p and q are set
         if d and p and q:
             # Construct and return a private key
-            return RSA.construct((int(n), int(e), int(d), int(p), int(q)), True)
+            return RSA.construct((n, e, d, p, q), True)
         # Construct and return a public key.
-        return RSA.construct((int(n), int(e)), True)
+        return RSA.construct((n, e), True)
 
     @staticmethod
     def import_rsa_private_key_from_file(file_location: str, passphrase: str or None = None):
@@ -189,21 +191,43 @@ class Encryption:
         return pkcs1_15.new(rsa_private).sign(hash_object)
 
     @staticmethod
-    def is_signature_valid(rsa_public: RSA.RsaKey, hash_object: SHA256.SHA256Hash, sig: bytes) -> bool:
+    def is_signature_valid(rsa_public_key: RSA.RsaKey, hash_object: SHA256.SHA256Hash, sig: bytes) -> bool:
         """
         Takes a MAC tag and verifies it is valid.
 
-        :param RSA.RsaKey rsa_public: A RSA public key.
+        :param RSA.RsaKey rsa_public_key: A RSA public key object.
         :param SHA256.SHA256Hash hash_object: The hash object.
         :param bytes sig: A signature of the above hash.
         :return: True if it can be trusted, False otherwise.
         """
         try:
-            pkcs1_15.new(rsa_public).verify(hash_object, sig)
+            pkcs1_15.new(rsa_public_key).verify(hash_object, sig)
         except (ValueError, TypeError):
             return False
         else:
             return True
+
+    @staticmethod
+    def are_hash_and_sig_valid(data, rsa_public_key: RSA.RsaKey, original_hash: str, sig: str) -> bool:
+        """
+        Verifies if a hash and a signature are valid.
+
+        :param data: Data, as any type, as long as it is iterable.
+        :param RSA.RsaKey rsa_public_key: A RSA public key object.
+        :param str original_hash: An hexadecimal digest.
+        :param str sig: A signature, base64-encoded.
+        :return bool: True if they are, False otherwise.
+        """
+        data_hash = Encryption.hash_iterable(data)
+        if original_hash is not data_hash:
+            return False
+
+        sig = Encryption.deserialize_string(sig)
+
+        if not Encryption.is_signature_valid(rsa_public_key, data_hash, sig):
+            return False
+
+        return True
 
     @staticmethod
     def get_max_rsa_enc_msg_length(sha: int = 256) -> int:
@@ -298,6 +322,30 @@ class Encryption:
         aes = AES.new(key=aes_key, mode=mode)
         nonce = aes.nonce
         return aes_key, nonce
+
+    @staticmethod
+    def create_half_aes(length: int = Config.aes_keys_length / 2) -> bytes:
+        return get_random_bytes(length)
+
+    @staticmethod
+    def derive_nonce_from_aes_key(key: bytes):
+        h = Encryption.hash_iterable(key)
+        # return h.hexdigest()[:len(key) / 2]
+        return h.hexdigest()[:Config.aes_keys_length / 2]
+
+    @staticmethod
+    def verify_received_aes_key(key: dict, rsa_public_key: RSA.RsaKey) -> bool:
+        Utils.validate_fields(key, Structures.key_structure)
+        value = key["value"]
+        hash = key["hash"]
+        sig = Encryption.deserialize_string(key["sig"])
+        h = Encryption.hash_iterable(value)
+        if hash is not h.hexdigest():
+            return False
+        if not Encryption.is_signature_valid(rsa_public_key, h, sig):
+            return False
+        return True
+
 
     @staticmethod
     def construct_aes_object(aes_key: bytes, nonce: bytes, mode: int = Config.aes_mode):

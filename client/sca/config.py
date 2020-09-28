@@ -12,12 +12,24 @@ class Config:
     message_fields: tuple = ("author", "ciphertext", "sent")
 
     # The maximum number of contacts we should know of.
-    max_contacts = 50
+    max_contacts: int = 50
 
     # List of Beacons.
     # An entry must be made of an address (IP or DNS) and a port, separated by a colon (:).
     # Example : ["192.168.0.100:12345"]
-    servers: list = []
+    beacons: list = []
+
+    # If the AES key exchange is not made within this delay, abort it.
+    # In seconds, default is 604800 (one week).
+    ake_timeout: int = 604800
+
+    # Lifespan of a request in seconds.
+    # After this delay, the request will automatically be removed from the raw_requests.
+    # Default is 5356800, two months.
+    max_request_lifespan: int = 5356800
+
+    # Network port used by the system.
+    port: int = 62355
 
     @staticmethod
     def get_local_ip_address() -> str:

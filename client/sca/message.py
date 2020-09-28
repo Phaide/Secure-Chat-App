@@ -44,6 +44,9 @@ class Message:
         if not Utils.validate_fields(message_data, Structures.received_message_structure):
             return False
 
+        if not Node.is_valid(message_data["author"]):
+            return False
+
         return True
 
     @staticmethod
@@ -58,27 +61,52 @@ class Message:
         if type(message_data) is not dict:
             return False
 
-        if not Utils.validate_fields(message_data, Structures.raw_stored_message_structure):
+        if not Utils.validate_fields(message_data, Structures.stored_message_structure):
             return False
 
         return True
 
+    # Encryption section
+
+    @staticmethod
+    def encrypt_message(aes_key: bytes, nonce: bytes, message: dict) -> dict:
+        aes = Encryption.construct_aes_object(aes_key, nonce)
+        encrypted_message, tag = Encryption.encrypt_symmetric(aes, message["content"])
+        message["content"] = encrypted_message
+        message["meta"]["digest"] = tag
+        return message
+
+    @staticmethod
+    def decrypt_message(aes_key: bytes, nonce: bytes, message: dict) -> dict:
+        """
+        Takes a valid message as a dictionary and returns its content decrypted using passed AES and nonce.
+
+        :param bytes aes_key:
+        :param bytes nonce:
+        :param dict message:
+        :return dict:
+        """
+        aes = Encryption.construct_aes_object(aes_key, nonce)
+        decrypted_message = Encryption.decrypt_symmetric(aes, message["content"], message["meta"]["digest"])
+        message["content"] = Encryption.decode_bytes(decrypted_message)
+        return message
+
     # Class methods section
 
     @classmethod
-    def from_dict_encrypted(cls, aes_key, message_data: dict) -> object or None:
+    def from_dict_encrypted(cls, aes_key: bytes, nonce: bytes, message_data: dict) -> object or None:
         """
         Creates and returns a new message object created from the dictionary "message_data".
+        The data must be checked to be valid beforehand.
 
-        :param aes_key: A AES cipher (object).
+        :param bytes aes_key: An AES key.
+        :param bytes nonce: The AES nonce.
         :param dict message_data: A message information, as a dictionary.
         :return object|None: A message object or None.
         """
-        if not cls.is_received_message_valid(message_data):
-            return
-
+        aes = Encryption.construct_aes_object(aes_key, nonce)
         try:
-            content = Encryption.decrypt_symmetric(aes_key, message_data["content"], message_data["meta"]["digest"])
+            content = Encryption.decrypt_symmetric(aes, message_data["content"], message_data["meta"]["digest"])
             # Content is now a bytes object, unless the decryption failed.
         except (ValueError, KeyError):
             return
@@ -93,13 +121,11 @@ class Message:
     def from_dict(cls, message_data: dict) -> object or None:
         """
         Creates a new Message object from a dictionary (clear message).
+        The data must be checked to be valid beforehand.
 
         :param dict message_data: A message, as a dict.
         :return object|None: A new message object or None.
         """
-        if not cls.is_received_message_valid(message_data):
-            return
-
         msg = cls()
 
         msg.set_message(message_data["content"])
@@ -165,6 +191,9 @@ class Message:
         """
         return self.content
 
+    def get_time_sent(self) -> str or None:
+        return self.meta.time_sent
+
     def get_time_received(self) -> str or None:
         """
         Returns the message's "time_received" value.
@@ -173,11 +202,14 @@ class Message:
         """
         return self.meta.time_received
 
+    def get_digest(self) -> str or None:
+        return self.meta.digest
+
     def get_id(self):
         """
         Returns the message's id.
         """
-        return Message.get_id_from_message(self.as_dictionary())
+        return Message.get_id_from_message(self.to_dict())
 
     @staticmethod
     def get_id_from_message(message: dict) -> str:
@@ -194,23 +226,21 @@ class Message:
 
     # Export section
 
-    def as_dictionary(self) -> dict:
+    def to_dict(self) -> dict:
         """
         Returns the message as a dictionary.
 
         :return dict: The message, as a dictionary.
         """
-        dic = {
-            "content": self.content,
+        return {
+            "content": self.get_message(),
             "meta": {
-                "time_sent": self.meta.time_sent,
-                "time_received": self.meta.time_received,
-                "digest": self.meta.digest,
-                "id": self.meta.identifier
+                "time_sent": self.get_time_sent(),
+                "time_received": self.get_time_received(),
+                "digest": self.get_digest()
             },
-            "author": self.author.as_dictionary()
+            "author": self.author.to_dict()
         }
-        return dic
 
     def to_json(self) -> str:
         """
@@ -218,7 +248,7 @@ class Message:
 
         :return str: A JSON-encoded string.
         """
-        return Utils.encode_json(self.as_dictionary())
+        return Utils.encode_json(self.to_dict())
 
 
 class OwnMessage(Message):
@@ -246,7 +276,7 @@ class OwnMessage(Message):
 
     def set_aes(self, master_node):
         assert type(self.author) == type(Node)
-        master_node.conversations.get_aes(master_node.rsa_private_key, self.author.get_id())
+        master_node.conversations.get_decrypted_aes(master_node.rsa_private_key, self.author.get_id())
 
     def prepare(self, aes) -> None:
         """
@@ -257,7 +287,7 @@ class OwnMessage(Message):
         """
         assert type(self.content) == str
         # Next, encode and encrypt the content.
-        encoded_content = Encryption.encode_string(self.content)
+        encoded_content: bytes = Encryption.encode_string(self.content)
         se_en_content, digest = Encryption.encrypt_symmetric(aes, encoded_content)
         self.set_message(se_en_content)
         self.set_digest(digest)
@@ -271,4 +301,4 @@ class OwnMessage(Message):
 
         :return bool: True if the node is properly prepared, False otherwise.
         """
-        return OwnMessage.is_prepared_message_valid(self.as_dictionary())
+        return OwnMessage.is_prepared_message_valid(self.to_dict())

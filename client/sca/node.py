@@ -178,12 +178,12 @@ class Node:
         """
         self.rsa_public_key = rsa_public_key
 
-    def get_rsa_public_key(self) -> object:
+    def get_rsa_public_key(self):
         """
         Returns the Node's RSA public key.
         The instance must have a valid "rsa_public_key" attribute.
 
-        :return object: A RSA public key object.
+        :return: A RSA public key object.
         """
         return Encryption.get_public_key_from_private_key(self.rsa_public_key)
 
@@ -211,13 +211,71 @@ class Node:
         """
         return Encryption.is_signature_valid(self.rsa_public_key, rsa_public_key, sig)
 
+    # AES section
+
+    def auto_aes(self, master_node) -> bool:
+        """
+        This method automatically sets the instance's attribute "self.aes" by getting the key from the database.
+
+        :param master_node:
+        :return bool: True if it worked (self.aes is set), False otherwise.
+        """
+        aes = self.get_aes_db(master_node)
+
+        if not aes:
+            return False
+
+        self.set_aes_attr(*aes)
+
+        return True
+
+    def set_aes_attr(self, aes_key: bytes, nonce: bytes) -> None:
+        """
+        Sets the Node's AES values.
+
+        :param bytes aes_key: The AES key.
+        :param bytes nonce: The AES nonce.
+        """
+        self.aes = aes_key, nonce
+
+    def get_aes_attr(self) -> tuple or None:
+        """
+        Returns own aes values.
+
+        :return tuple|None: A 2-tuple (bytes: AES key, bytes: AES Nonce) if set, None otherwise.
+        """
+        return self.aes
+
+    def get_aes_db(self, master_node) -> tuple or None:
+        """
+        Gets the AES values from the database.
+        Only returns the AES key and nonce if the negotiation is done.
+
+        :param MasterNode master_node: The master node object, used to access the database and decrypt the values.
+        :return tuple|None:
+        """
+        aes = master_node.conversations.get_decrypted_aes(master_node.get_rsa_private_key(), self.get_id())
+
+        # If the key could not be gathered, return.
+        if not aes:
+            return
+        else:
+            # Unpack the values from the tuple.
+            aes_key, nonce = aes
+        if aes_key != Config.aes_keys_length or nonce is None:
+            return
+        else:
+            return aes_key, nonce
+
     # Hash section
 
-    def set_hash(self, h: str) -> None:
+    def set_hash(self, hexdigest: str) -> None:
         """
         Sets the Node's hash.
+
+        :param str hexdigest:
         """
-        self.hash = h
+        self.hash = hexdigest
 
     @staticmethod
     def get_node_hash(rsa_public_key):
@@ -236,12 +294,20 @@ class Node:
 
         :return str: The hash's hexdigest.
         """
-        h = Node.get_node_hash(self.rsa_public_key)
-        return h.hexdigest()
+        if self.hash is None:
+            h = Node.get_node_hash(self.rsa_public_key)
+            return h.hexdigest()
+        else:
+            return self.hash
 
     # Export section
 
-    def as_dictionary(self) -> dict:
+    def to_dict(self) -> dict:
+        """
+        Returns the Node as a valid dict.
+
+        :return dict: A valid dictionary, as defined by Structures.node_structure.
+        """
         dic = {
             "rsa_n": self.rsa_public_key.n,
             "rsa_e": self.rsa_public_key.e,
@@ -256,7 +322,7 @@ class Node:
 
         :return str: JSON string containing the information of the node.
         """
-        return Utils.encode_json(self.as_dictionary())
+        return Utils.encode_json(self.to_dict())
 
 
 class MasterNode(Node):
@@ -273,7 +339,6 @@ class MasterNode(Node):
         This function must only be called once self.id is set.
         """
         self.conversations = Conversations(pre=self.id + "_")
-        self.contacts = Contacts()
 
     def get_messages(self, conversation_id: str) -> list:
         """
@@ -282,7 +347,7 @@ class MasterNode(Node):
         :param str conversation_id:
         :return list:
         """
-        return self.conversations.get_all_messages_of_conversation(self.rsa_private_key, conversation_id)
+        return self.conversations.get_all_messages_of_conversation_raw(self.rsa_private_key, conversation_id)
 
     def __initialize(self, rsa_private_key) -> None:
         """
@@ -303,13 +368,18 @@ class MasterNode(Node):
 
     # RSA section
 
-    def set_rsa_private_key(self, rsa_private_key: object) -> None:
+    def set_rsa_private_key(self, rsa_private_key) -> None:
         """
         Sets attribute "self.rsa_private_key".
 
-        :param object rsa_private_key: A RSA private key object.
+        :param rsa_private_key: A RSA private key object.
         """
         self.rsa_private_key = rsa_private_key
+
+    def get_rsa_private_key(self):
+        """
+        Returns Node's private key.
+        """
 
     def sign_self(self) -> bytes:
         """
@@ -318,12 +388,3 @@ class MasterNode(Node):
         :return bytes: A signature, as bytes.
         """
         return Encryption.get_rsa_signature(self.rsa_private_key, self.get_own_hash())
-
-    # AES section
-
-    def set_aes(self) -> None:
-        """
-        Sets the Node's AES values.
-        """
-        assert self.id is not None
-        self.aes = self.conversations.get_aes(self.get_id())

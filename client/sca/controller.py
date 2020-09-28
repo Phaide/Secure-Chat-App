@@ -189,7 +189,7 @@ class Controller:
             self.parent.Show()
 
         def display_conversations(self, index: int, user_filter: str) -> None:
-            all_conversations_identifiers = self.master_node.conversations.get_all_conversations()
+            all_conversations_identifiers = self.master_node.conversations.get_all_conversations_ids()
 
             displayed_conversations = 0
 
@@ -298,11 +298,11 @@ class Controller:
             self.new_message_recipient_id = self.recipient_choices_indexes[event.GetSelection()]
 
         def send_message_to_new_node(self, event):
-            node_info: dict = self.master_node.contacts.get_node_info(self.new_message_recipient_id)
+            node_info: dict = self.master_node.contacts.get_contact_info(self.new_message_recipient_id)
             node_object = Node.from_dict(node_info)
             self.network.prepare_message_for_recipient()
             self.network.send_message()
-            self.master_node.conversations.get_aes(node_object.get_id_from_rsa_key(node_object.get_rsa_public_key()))
+            self.master_node.conversations.get_decrypted_aes(node_object.get_id_from_rsa_key(node_object.get_rsa_public_key()))
             # C'est ici qu'on va créer une clef AES pour la conversation. Note: pas de forward secrecy (pour l'instant).
 
         def update_message(self, event: wx.CommandEvent) -> None:
@@ -325,8 +325,8 @@ class Controller:
             self.parent.Show()
 
         def display_conversation(self):
-            conversation_message = self.master_node.conversations.get_all_messages_of_conversation(self.master_node.rsa_private_key,
-                                                                                                   self.rcp_id)
+            conversation_message = self.master_node.conversations.get_all_messages_of_conversation_raw(self.master_node.rsa_private_key,
+                                                                                                       self.rcp_id)
             messages_wx_objects = {}
             for message in conversation_message:
                 msg_content = message.get_message()

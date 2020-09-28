@@ -68,24 +68,6 @@ class Database:
         db = shelve.open(db_name)
         return db
 
-    def insert_new_column(self, column_name: str, column_type: type) -> None:
-        """
-        Adds a new column to the database structure.
-
-        :param str column_name: The name of the new column.
-        :param type column_type: Its type as a type object (dict, list, tuple, etc.)
-        """
-        if column_type == dict:
-            ins = {column_name: {}}
-        elif column_type == list:
-            ins = {column_name: []}
-        elif column_type == tuple:
-            ins = {column_name: ()}
-        else:
-            raise TypeError(f"Invalid column type: {column_type} for new column named \"{column_name}\"")
-        self.db_columns.append(column_name)
-        self.db.update(ins)
-
     def column_exists(self, column: str) -> bool:
         """
         Checks if the column exists in the database.
@@ -106,6 +88,24 @@ class Database:
         # assert self.column_exists(column)
         # assert type(key) == str
         return key in self.db[column]
+
+    def insert_new_column(self, column_name: str, column_type: type) -> None:
+        """
+        Adds a new column to the database structure.
+
+        :param str column_name: The name of the new column.
+        :param type column_type: Its type as a type object (dict, list, tuple, etc.)
+        """
+        if column_type == dict:
+            ins = {column_name: {}}
+        elif column_type == list:
+            ins = {column_name: []}
+        elif column_type == tuple:
+            ins = {column_name: ()}
+        else:
+            raise TypeError(f"Invalid column type: {column_type} for new column named \"{column_name}\"")
+        self.db_columns.append(column_name)
+        self.db.update(ins)
 
     def insert_dict(self, column: str, pair: dict) -> None:
         """
@@ -151,6 +151,17 @@ class Database:
         cl[key] = value  # Alters the copy.
         self.db[column] = cl  # Replace the original by the copy.
         self.db.sync()  # Update the database.
+
+    def drop(self, column: str, key: str) -> None:
+        """
+        Removes key from column.
+
+        :param str column: A column name.
+        :param str key: A key in the column.
+        """
+        # assert self.column_exists(column)
+        # assert self.key_exists(column, key)
+        self.db[column].pop(key)
 
     def query_column(self, search_column: str) -> any:
         """
