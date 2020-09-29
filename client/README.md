@@ -77,13 +77,14 @@ Every request made over the network has this structure:
 }
 ```
 
-## Waking Up Protocol - WHATSUP (find an acronym for that please)
+## What's Up Protocol - "WUP"
 
 ```json
 {
-  "status": "WHATSUP",
+  "status": "WUP_INI",
   "data": {
-    "timestamp": 123456
+    "timestamp": 123456,
+    "author": ...simple_contact_structure...
   },
   "timestamp": "timestamp"
 }
@@ -96,9 +97,9 @@ and as "timestamp" the last received message "time_received" value.
 
 ```json
 {
-  "status": "WHATSUP_REPLY",
+  "status": "WUP_REP",
   "data": {
-    ...message_structure...
+    ...request_structure...
   },
   "timestamp": "timestamp"
 }
@@ -109,7 +110,7 @@ and as "timestamp" the last received message "time_received" value.
 we check if "time_sent" <= request_timestamp ; 
 if it is, then we send the message to this specific node with the above request structure.
 
-## AES keys exchange - "AKE"
+## Keys Exchange Protocol - "KEP"
 
 - This protocol is used when negotiating a new AES key for a conversation.
     - Note that this key is only used to encrypt and decrypt for network communication.
@@ -123,7 +124,7 @@ if it is, then we send the message to this specific node with the above request 
 
 ```json
 {
-  "status": "AES_KEY_NEGO",
+  "status": "AKE",
   "data": {
     "key": {
       "value": "16_bytes_rsa_encrypted_AES_key",
@@ -157,14 +158,14 @@ they should both have the same key and nonce.
 
 : Comment savoir de qui viens le message ? Comment choisir la bonne clef AES ?
 
-## Message redirection protocol - "MRP".
+## Message Propagation Protocol - "MPP".
 
 This protocol is called when a message is received.
 A typical JSON-encoded network message looks like this:
 
 ```json
 {
-  "status": "MSG",
+  "status": "MPP",
   "data": {
     ...message_structure...
   },
@@ -184,7 +185,7 @@ AKE protocol must be complete with the conversation node.
 6. If we're able to access the decrypted content, 
 we re-encrypt the message with our own AES key, and we store it in the "conversations" database.
 
-## Publication protocol - "PUB"
+## Node Publication Protocol - "NPP"
 
 This protocol is used when sending a node identity over the network.
 
@@ -193,7 +194,7 @@ This protocol is used when sending a node identity over the network.
 
 ```json
 {
-  "status": "PUB",
+  "status": "NPP",
   "data": {
     ...node_structure...
   },
@@ -201,7 +202,11 @@ This protocol is used when sending a node identity over the network.
 }
 ```
 
+## Contact Sharing Protocol - "CSP"
 
+## Discover Pub Protocol - "DPP"
+
+## Discover Contact Protocol - "DCP"
 
 # *Terms*
 
@@ -307,7 +312,7 @@ This protocol is used when sending a node identity over the network.
     "keys": {
         "node_identifier": {
             "key": "aes_key",
-            "status": "DONE | WAITING",
+            "status": "DONE | IN_PROGRESS",
             "timestamp": "123456789"
         }
     }
