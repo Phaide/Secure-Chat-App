@@ -51,9 +51,16 @@ class Network:
     # Requests section
 
     def route_request(self, request: Request, broadcast: bool = True) -> None:
+        """
+        This method is used to route the requests to their corresponding functions, in order to process them.
+
+        :param Request request: The request, as a Request object.
+        :param bool broadcast: Whether we want to broadcast the message.
+        The only case it should be set to False is if we are replying to a specific request.
+        """
 
         if request.status == "WUP_INI":  # What's Up Protocol Initialization
-
+            self.handle_what_is_up_init(request)
             return
         elif request.status == "WUP_REP":
             self.handle_what_is_up_reply(request)  # What's Up Protocol Reply
@@ -104,6 +111,7 @@ class Network:
     def handle_raw_request(self, json_request: str) -> None:
         """
         This function is called everytime we receive a JSON request.
+        It converts the request to a dictionary (if structurally valid) and routes it.
 
         :param str json_request: A request, as a JSON-encoded string.
         """
@@ -123,12 +131,10 @@ class Network:
         """
         Negotiate an AES key.
         This function is called by two events:
-        - When we receive an AKE request,
-        - When we discover a new node.
+        - When we receive an Keys Exchange (KEP) request,
+        - When we discover a new node (Node Publication Protocol).
 
-        The request must be valid.
-
-        :param Request request: A request.
+        :param Request request: A valid request.
         :return bool: True if the negotiation is over, False otherwise.
         """
 
@@ -176,7 +182,7 @@ class Network:
             """
             key = self.master_node.conversations.get_decrypted_aes(self.master_node.get_rsa_private_key(), key_id)
             aes_key, nonce = key
-            half_aes_key = Encryption.create_half_aes()
+            half_aes_key = Encryption.create_half_aes_key()
             key, nonce = concatenate_keys(aes_key, half_aes_key)
             propagate(half_aes_key)
             store(key_id, key, nonce)
@@ -187,7 +193,7 @@ class Network:
             We then proceed to send the other half of the key.
             At the end of this function, we have a valid AES key for communicating with this node.
             """
-            half_aes_key = Encryption.create_half_aes()
+            half_aes_key = Encryption.create_half_aes_key()
             rsa_public_key = Encryption.construct_rsa_object(request.data["author"]["rsa_n"],
                                                              request.data["author"]["rsa_e"])
             Encryption.verify_received_aes_key(request.data["key"], rsa_public_key)
@@ -205,7 +211,7 @@ class Network:
             We send our half, store it and wait.
             When receiving the second part, we will call "finish_negotiation()".
             """
-            half_aes_key = key = Encryption.create_half_aes()
+            half_aes_key = key = Encryption.create_half_aes_key()
             propagate(half_aes_key)
             store(key_id, key, None)
 
@@ -255,7 +261,7 @@ class Network:
         It is called after the request has been broadcasted back,
         and will take care of storing the message if we can decrypt its content.
 
-        :param Request request:
+        :param Request request: A MPP request.
         """
         # Verify all fields of the message.
         # After this function, you can be sure every piece of information is valid.
@@ -263,15 +269,14 @@ class Network:
             return
 
         node = Node.from_dict(request.data["author"])
-        if node.auto_aes():
-            # The AES negotiation has already been established, so we can proceed.
-            aes_key, nonce = node.get_aes_attr()
-        else:
+        if not node.auto_aes():
             # Here, the negotiation is not done yet, so we launch it.
-            # If it return False, meaning the negotiation is not over, we end the function.
+            # If it returns False, meaning the negotiation is not over, we end the function.
             # Otherwise, we continue.
             if not self.negotiate_aes(request):
                 return
+
+        # The AES negotiation has been established, so we can proceed.
 
         # Tries to set the AES values again.
         # If for any reason it fails, end the function.
@@ -289,9 +294,9 @@ class Network:
 
     def handle_what_is_up_init(self, request: Request) -> None:
         """
-        Called when receive a What's Up init request.
+        Called when we receive a What's Up init request.
 
-        :param Request request:
+        :param Request request: A WUP_INI request.
         """
         request_timestamp = int(request.data["timestamp"])
 
@@ -308,7 +313,7 @@ class Network:
         """
         Called when receiving a What's Up replies request.
 
-        :param Request request:
+        :param Request request: A WUP_REP request.
         """
         if not Requests.is_valid_wup_rep_request(request):
             return
@@ -323,7 +328,7 @@ class Network:
         Handles the Discover Pub requests.
         The request must be valid.
 
-        :param Request request:
+        :param Request request: A valid DPP request.
         """
         contact = Contact.from_raw_address(request.data["address"])
 
@@ -340,7 +345,7 @@ class Network:
         Handles the Discover Contacts requests.
         The request must be valid.
 
-        :param Request request:
+        :param Request request: A valid CSP request.
         """
         contact = Contact.from_raw_address(request.data["address"])
 
@@ -354,10 +359,12 @@ class Network:
 
     # Protocols section
 
-    def what_is_up(self) -> None:
+    def what_is_up(self) -> None:  # Is this method still used ?
         """
         Chooses a node (preferably a beacon) and asks for all requests since the last one we received.
         This method is called when a RSA private key is loaded into the client.
+
+
         """
 
         def get_node_list_id(node_list: list, excluded: list) -> int:
@@ -415,17 +422,6 @@ class Network:
     def read_message(msg: str, node: str) -> None or Message:
         """
         Tries to read a message received by a peer, to only check if it is correct (not decrypting it here).
-
-        A raw received message looks like this:
-
-        {
-            "content": encrypted_message,
-            "meta": {
-                "time_sent": timestamp,
-                "digest": digest,
-                "aes": key
-            }
-        }
 
         :param str msg: A message, as a JSON string.
         :param str node: A node, as a JSON string.
@@ -485,60 +481,34 @@ class Network:
 
         while True:
             connection, address = server_socket.accept()
-            print(address)
-            print(receive_all(connection))
+            raw_request = receive_all(connection)
 
     def broadcast_request(self, request: Request) -> None:
-        pass
-
-    def send_request(self, request: Request, contact: Contact) -> bool:
-        pass
-
-    def broadcast_message(self, message: Message) -> None:
         """
-        Broadcast a message to all known contacts.
+        Broadcast a request to all known contacts.
 
-        :param Message message: Message object
+        :param Request request:
         """
-        known_nodes = {}
+        known_contacts = {}
 
-        for node_id in self.master_node.contacts.list_peers():
-            known_nodes.update({node_id: self.master_node.contacts.get_contact_info(node_id)})
+        for contact_id in self.master_node.contacts.list_peers():
+            known_contacts.update({contact_id: self.master_node.contacts.get_contact_info(contact_id)})
 
-        for node in known_nodes:
-            self.send_network_message(node, message)
+        for contact_info in known_contacts:
+            contact_object = Contact.from_dict(contact_info)
+            self.send_request(request, contact_object)
 
-    def relay_message(self, message: Message) -> None:
+    def send_request(self, request: Request, contact: Contact) -> None:
         """
-        Relays a message to all known nodes.
-        Note: this function must only be used when sending other nodes' messages.
+        Send a request to a specific contact.
 
-        :param Message message: A message object.
+        :param Request request: The request to send.
+        :param Contact contact: The contact to send the request to.
         """
-        self.broadcast_message(message)
-
-    def send_message(self, message: Message) -> None:
-        """
-        Prepare a message for network broadcast.
-        Note: this function must only be used when sending own messages.
-
-        :param Message message: A message object.
-        """
-        message.set_time_sent()
-        message.prepare()  # Must be reworked after conversations and aes refactor
-        self.broadcast_message(message)
-
-    def send_network_message(self, contact: dict, message: Message) -> None:
-        """
-        Send a message to a contact.
-
-        :param dict contact: A dictionary containing the information of a contact.
-        :param Message message:
-        """
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # Initiate network connection with the contact.
         # TODO : error handling
-        address, port = contact["address"].split(":")
+        address = contact.get_address()
+        port = contact.get_port()
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect((address, port))  # Convert node.port to str ? !!! DEV ONLY !!!
-
-        client_socket.send(Encryption.encode_string(message.to_json()))
+        client_socket.send(request.to_json())

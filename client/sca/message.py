@@ -70,6 +70,14 @@ class Message:
 
     @staticmethod
     def encrypt_message(aes_key: bytes, nonce: bytes, message: dict) -> dict:
+        """
+        Encrypts a message using the AES information passed.
+
+        :param bytes aes_key: An AES key.
+        :param nonce: The nonce linked to the AES key.
+        :param message: A valid message, as a dictionary.
+        :return dict: The message, with the sensitive information encrypted.
+        """
         aes = Encryption.construct_aes_object(aes_key, nonce)
         encrypted_message, tag = Encryption.encrypt_symmetric(aes, message["content"])
         message["content"] = encrypted_message
@@ -81,10 +89,10 @@ class Message:
         """
         Takes a valid message as a dictionary and returns its content decrypted using passed AES and nonce.
 
-        :param bytes aes_key:
-        :param bytes nonce:
-        :param dict message:
-        :return dict:
+        :param bytes aes_key: An AES key.
+        :param bytes nonce: The nonce linked to the AES key.
+        :param dict message: A valid message, as a dictionary.
+        :return dict: The message, with the sensitive information decrypted.
         """
         aes = Encryption.construct_aes_object(aes_key, nonce)
         decrypted_message = Encryption.decrypt_symmetric(aes, message["content"], message["meta"]["digest"])
@@ -96,7 +104,7 @@ class Message:
     @classmethod
     def from_dict_encrypted(cls, aes_key: bytes, nonce: bytes, message_data: dict) -> object or None:
         """
-        Creates and returns a new message object created from the dictionary "message_data".
+        Creates and returns a new object instance created from the dictionary "message_data".
         The data must be checked to be valid beforehand.
 
         :param bytes aes_key: An AES key.
@@ -120,7 +128,7 @@ class Message:
     @classmethod
     def from_dict(cls, message_data: dict) -> object or None:
         """
-        Creates a new Message object from a dictionary (clear message).
+        Creates a new object instance from the dictionary (clear message).
         The data must be checked to be valid beforehand.
 
         :param dict message_data: A message, as a dict.
@@ -140,7 +148,7 @@ class Message:
         """
         Sets the message's content (its text).
 
-        :param str message: A new message, can be of roughly any length.
+        :param str message: A new message, as a string.
         """
         self.content = message
 
@@ -203,11 +211,18 @@ class Message:
         return self.meta.time_received
 
     def get_digest(self) -> str or None:
+        """
+        Returns own AES digest.
+
+        :return str|None: A serialized digest if set, otherwise None.
+        """
         return self.meta.digest
 
-    def get_id(self):
+    def get_id(self) -> str or None:
         """
         Returns the message's id.
+
+        :return str|None: The message's ID if set, otherwise None.
         """
         return Message.get_id_from_message(self.to_dict())
 
@@ -228,7 +243,7 @@ class Message:
 
     def to_dict(self) -> dict:
         """
-        Returns the message as a dictionary.
+        Returns the message instance's attributes as a dictionary.
 
         :return dict: The message, as a dictionary.
         """
@@ -244,7 +259,7 @@ class Message:
 
     def to_json(self) -> str:
         """
-        Converts the current object to a JSON-encoded string, ready to be sent over the network and/or stored.
+        Converts the current object to a JSON-encoded string.
 
         :return str: A JSON-encoded string.
         """
@@ -275,6 +290,21 @@ class OwnMessage(Message):
         return True
 
     def set_aes(self, master_node):
+        """
+        Set AES linked to the message (the conversation's AES key).
+
+        Note: What the fuck is this method ?
+        It's useless to store the AES key in the message as :
+        - The locally stored message is encrypted using our own AES key.
+        - When receiving a new message, we indeed use the AES negotiated with the distant node,
+        but we don't need this message anymore ! And even if we did, there's no way we're making a query on this object
+        instead of the database !
+
+        This function would be way more useful in the node object.
+
+        :param master_node:
+        :return:
+        """
         assert type(self.author) == type(Node)
         master_node.conversations.get_decrypted_aes(master_node.rsa_private_key, self.author.get_id())
 

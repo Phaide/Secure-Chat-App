@@ -20,12 +20,30 @@ class Nodes:
             self.db.insert_dict(self.db.nodes_table, {node_id: node.to_dict()})
 
     def get_all_node_ids(self) -> list:
+        """
+        Lists all known nodes' IDs.
+
+        :return list: A list of all the nodes ID we know.
+        """
+
         pass
 
     def get_node_info(self, node_id: str) -> dict:
+        """
+        Gets a node ID and query the database to retrieve the node's information.
+
+        :param str node_id: A node ID.
+        :return dict: A dictionary containing the information of the node.
+        """
         pass
 
     def node_exists(self, node_id: str) -> bool:
+        """
+        Checks whether we know this node or not.
+
+        :param str node_id: A node ID.
+        :return bool: True if we know it, False otherwise.
+        """
         pass
 
 
@@ -33,7 +51,7 @@ class NodesDatabase(Database):
 
     """
 
-    This database holds information about the known nodes.
+    This database holds information about the nodes we know (our P2P network).
 
     Database structure:
 

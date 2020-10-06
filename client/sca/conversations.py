@@ -22,11 +22,18 @@ class Conversations:
     # Conversations section
 
     def does_conversation_exist_with_node(self, node_id: str) -> bool:
+        """
+        Queries the database, and checks if a conversation already exists with a node.
+
+        :param str node_id: A node ID.
+        :return bool: True if the conversation exists, False otherwise.
+        """
         return self.db.key_exists(self.db.keys_table, node_id)
 
     def get_all_conversations_ids(self) -> list:
         """
-        Gets from the database a list of all the ids of the nodes with whom a conversation has been established.
+        Gets a list of all the Nodes IDs with whom a conversation has been established.
+        Note: if a conversation exists with a node, this means that the AES keys have been successfully negotiated.
 
         :return list: List of conversation identifiers.
         """
@@ -34,10 +41,10 @@ class Conversations:
 
     def get_all_messages_of_conversation_raw(self, conversation_id: str) -> dict:
         """
-        Returns all messages of a conversation (still encrypted).
+        Returns all messages of a conversation (still encrypted with our own AES key).
 
-        :param str conversation_id: A node ID
-        :return dict: A dict of all the messages (as dictionaries) in the conversation, from oldest to latest.
+        :param str conversation_id: A node ID.
+        :return dict: A dict of all the messages (as dictionaries) in the conversation.
         """
         # Messages are stored from the oldest to the latest, and we gather them in this order.
         return {k: v for k, v in self.db.query(self.db.conversation_table, conversation_id).items()}
@@ -46,16 +53,13 @@ class Conversations:
         """
         Returns a decrypted version of all messages of a conversation.
 
-        :param rsa_private_key: A RSA private key, used to decrypt the AES key, used to decrypt the messages.
+        :param rsa_private_key: A RSA private key object, used to decrypt the AES key and therefore the messages.
         :param str conversation_id: A node ID.
-        :return dict: A dict of all the messages in the conversation, from oldest to latest (is it?), decrypted.
+        :return dict: A dict of all the messages in the conversation, decrypted.
         """
         aes_key, nonce = self.get_decrypted_aes(rsa_private_key, conversation_id)
         messages: dict = self.get_all_messages_of_conversation_raw(conversation_id)
         for k, v in messages.items():
-            # Creates a new AES object at every iteration.
-            # We do this because the AES cipher depends on the last message(s) encrypted.
-            # Therefore, there is a relationship between every message (if we use the same object).
             messages[k] = Message.decrypt_message(aes_key, nonce, v)
         return messages
 
@@ -70,6 +74,14 @@ class Conversations:
         pass
 
     def store_new_message(self, rsa_private_key, conversation_id: str, message: Message) -> None:
+        """
+        Stores a new message in the database.
+
+        :param rsa_private_key: A RSA private key object.
+        :param str conversation_id: A conversation ID.
+        :param Message message: A message object.
+        :return:
+        """
         aes_key, nonce = self.get_decrypted_aes(rsa_private_key, conversation_id)
         message_id = message.get_id()
         message_data = message.to_dict()
@@ -80,8 +92,8 @@ class Conversations:
         """
         Returns the message with passed ID.
 
-        :param rsa_private_key:
-        :param str conversation_id: The conversation to search in. A node ID.
+        :param rsa_private_key: A RSA private key object.
+        :param str conversation_id: The ID of the conversation to search in.
         :param str message_id: A message ID.
         :return dict|None: Dictionary containing the message if it exists, None otherwise.
         """
@@ -102,7 +114,7 @@ class Conversations:
         """
         This function is called at every step of the AKE negotiation to store the AES in the database.
 
-        :param rsa_public_key: A RSA public key
+        :param rsa_public_key: A RSA public key object.
         :param str key_id: A node ID
         :param bytes key: A key, as bytes, containing both the key and the nonce. It is either 16 or 48 bytes.
         :param int timestamp: The timestamp of the negotiation.
@@ -125,15 +137,22 @@ class Conversations:
 
     def aes_key_exists(self, key_id: str) -> bool:
         """
-        Checks if a key exists in the database.
-        Does not care if it is negotiated or not.
+        Checks if an AES key exists in the database.
+        Does not care if the key has been fully negotiated or not.
 
         :param str key_id: The key ID to look for.
         :return bool: True if it exists, False otherwise.
         """
         return self.db.key_exists(self.db.keys_table, key_id)
 
-    def update_aes(self, aes_key, key_id: str) -> None:
+    def update_aes(self, aes_key: dict, key_id: str) -> None:
+        """
+        Updates an AES key if it exists in the database, creates it otherwise.
+
+        :param aes_key: A
+        :param dict key_id:
+        :return:
+        """
         if self.aes_key_exists(key_id):
             self.db.modify_aes(key_id, aes_key)
         else:
@@ -144,8 +163,8 @@ class Conversations:
         Gets an AES key from the database.
         The AES key values are still encrypted, however, we can access its other values.
 
-        :param str key_id:
-        :return dict:
+        :param str key_id: A key ID.
+        :return dict: The key information as a dictionary.
         """
         # Get the key ; the AES is still encrypted.
         # However, this dict will allow us to access its other values.
@@ -154,7 +173,7 @@ class Conversations:
 
     def get_decrypted_aes(self, rsa_private_key, key_id: str) -> tuple or None:
         """
-        This function returns an AES cipher (aes_key and nonce), decrypted from the database.
+        This function returns an AES cipher (aes_key and nonce) decrypted.
 
         :param rsa_private_key: RSA private key object.
         :param str key_id: A node ID.
@@ -177,22 +196,22 @@ class Conversations:
 
         return aes_key, nonce
 
-    def remove_aes_key(self, node_id: str) -> None:
+    def remove_aes_key(self, key_id: str) -> None:
         """
-        Removes AES key identified by "node_id" from the database.
+        Removes from the database the AES key identified by "node_id".
 
-        :param str node_id:
+        :param str key_id: A node ID.
         """
         if self.db.column_exists(self.db.keys_table):
-            if self.db.key_exists(self.db.keys_table, node_id):
-                self.db.drop(self.db.keys_table, node_id)
+            if self.db.key_exists(self.db.keys_table, key_id):
+                self.db.drop(self.db.keys_table, key_id)
 
     def remove_aes_key_if_expired(self, key_id: str) -> None:
         """
         Removes the specified AES key if it is expired.
         Otherwise, does nothing.
 
-        :param str key_id: A node ID.
+        :param str key_id: A key ID.
         """
         if not self.aes_key_exists(key_id):
             return
@@ -207,10 +226,10 @@ class Conversations:
     def is_aes_negotiation_launched(self, node_id: str) -> bool:
         """
         Checks if the key identified by node_id is set in the database.
-        If it is, then the key exists in the database, otherwise, it means the negotiation has not been launched yet.
+        If it isn't, this means the negotiation has not been launched yet.
 
         :param str node_id: A node ID.
-        :return bool: True if it is, False otherwise.
+        :return bool: True if it is set, False otherwise.
         """
         return self.db.key_exists(self.db.keys_table, node_id)
 
@@ -252,7 +271,7 @@ class ConversationsDatabase(Database):
     """
 
     This database holds information about conversations with known nodes.
-    This includes: aes key and nonce, messages (content, timestamps, hash, sig, etc)
+    This includes: aes key and nonce and messages (content, timestamps, hash, sig, etc)
 
     Database structure:
 

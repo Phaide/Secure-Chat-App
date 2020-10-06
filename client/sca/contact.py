@@ -8,8 +8,8 @@ from .utils import Utils
 
 @dataclass
 class Contact:
-    address: str
-    port: int
+    address: str  # An address, IP or DNS name.
+    port: int  # A network port.
     last_seen: int  # A timestamp, as POSIX seconds.
 
     # Validation section
@@ -17,16 +17,16 @@ class Contact:
     @staticmethod
     def is_valid(contact_data: dict) -> bool:
         """
-        Checks if the data passed is valid contact information.
+        Checks if the dictionary passed contains valid contact information.
 
         :param dict contact_data: A contact, as a dictionary.
-        :return bool: True if is valid, False otherwise.
+        :return bool: True if it is valid, False otherwise.
         """
         if not Utils.validate_fields(contact_data, Structures.simple_contact_structure):
             return False
 
         # Validate address and port.
-        address = contact_data["address"].split(':')
+        address: list = contact_data["address"].split(':')
 
         if len(address) != 2:
             return False
@@ -51,6 +51,13 @@ class Contact:
 
     @classmethod
     def from_dict(cls, contact_data: dict, last_seen: int = None):
+        """
+        Creates a new object of this class from a contact information.
+
+        :param dict contact_data: Contact data, as a dictionary.
+        :param int last_seen: Optional.
+        :return: A new object (instance) of this class.
+        """
         address, port = contact_data["address"].split(":")
         if last_seen is None:
             try:
@@ -64,23 +71,60 @@ class Contact:
         address, port = raw_address.split(":")
         return cls(address, port, 0)  # 0 ??!!!
 
-    # ID section
+    # Information section
 
     def get_id(self) -> str:
+        """
+        Get own ID.
+
+        :return str: An ID, as a string. Its length is defined by Config.id_len
+        """
         h = Encryption.hash_iterable(":".join([self.address, self.port]))
         return h.hexdigest()[:Config.id_len]
+
+    def get_address(self) -> str or None:
+        """
+        Gets the contact's address.
+
+        :return str|None: The address if set, None otherwise.
+        """
+        return self.address
+
+    def get_port(self) -> int or None:
+        """
+        Gets the contact's network port.
+
+        :return int|None: The network port if set, None otherwise.
+        """
+        return self.port
 
     # Last seen section
 
     def set_last_seen(self) -> None:
+        """
+        Defines the attribute "last_seen".
+        We set it to be right now, because this function must be called when creating a new instance
+        (unless a manual timestamp is being passed in the __init__).
+        """
         self.last_seen = Utils.get_timestamp()
 
     def get_last_seen(self) -> int:
+        """
+        Returns instance's last_seen.
+
+        :return:
+        """
         return self.last_seen
 
     # Export section
 
     def to_dict(self) -> dict:
+        """
+        Returns the instance's attributes as a dictionary.
+        This dictionary is valid for network communication and database storage.
+
+        :return dict: A contact, as a dictionary.
+        """
         return {
             "address": ":".join([self.address, self.port])
         }
@@ -92,6 +136,12 @@ class OwnContact:
         self.port = Config.port
 
     def to_dict(self) -> dict:
+        """
+        Returns the instance's attributes as a dictionary.
+        This dictionary is valid for network communication and database storage.
+
+        :return dict: Our contact, as a dictionary.
+        """
         return {
             "address": ":".join([self.address, self.port])
         }

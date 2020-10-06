@@ -45,6 +45,12 @@ class Requests:
 
     @staticmethod
     def is_valid_kep_request(request: Request) -> bool:
+        """
+        Checks whether the KEP request passed is valid.
+
+        :param Request request: A KEP request.
+        :return bool: True if the request is valid, False otherwise.
+        """
         if not Utils.validate_fields(request.to_dict(), Structures.ake_request_structure):
             return False
 
@@ -72,7 +78,7 @@ class Requests:
     # WUP section
 
     @staticmethod
-    def wup_ini(last_timestamp: int):
+    def wup_ini(last_timestamp: int) -> Request:
         """
         Creates a new What's Up Init request, used to request all messages since passed timestamp.
 
@@ -99,6 +105,12 @@ class Requests:
 
     @staticmethod
     def is_valid_wup_ini_request(request: Request) -> bool:
+        """
+        Checks whether a WUP_INI request is valid.
+
+        :param Request request: A WUP_INI request.
+        :return bool: True if the request is valid, False otherwise.
+        """
         if not Utils.validate_fields(request.to_dict(), Structures.wup_ini_request_structure):
             return False
         if not Node.is_valid(request.data["author"]):
@@ -107,6 +119,12 @@ class Requests:
 
     @staticmethod
     def is_valid_wup_rep_request(request: Request) -> bool:
+        """
+        Checks whether a WUP_REP request is valid.
+
+        :param Request request: A WUP_REP request.
+        :return bool: True if the request is valid, False otherwise.
+        """
         if not Utils.validate_fields(request.to_dict(), Structures.wup_rep_request_structure):
             return False
         return True
@@ -118,7 +136,7 @@ class Requests:
         """
         Creates a new Node Publication request.
 
-        :param Node node:
+        :param Node node: The node to publish.
         :return Request: A NPP Request.
         """
         data = node.to_dict()
@@ -126,6 +144,12 @@ class Requests:
 
     @staticmethod
     def is_valid_npp_request(request: Request) -> bool:
+        """
+        Checks whether a NPP request is valid
+
+        :param Request request: A NPP request.
+        :return bool: True if the request is valid, False otherwise.
+        """
         if not Node.is_valid(request.data):
             return False
         return True
@@ -145,6 +169,12 @@ class Requests:
 
     @staticmethod
     def is_valid_csp_request(request: Request) -> bool:
+        """
+        Checks whether a CSP request is valid.
+
+        :param Request request: A CSP request.
+        :return bool: True if the request is valid, False otherwise.
+        """
         if not Contact.is_valid(request.data):
             return False
         return True

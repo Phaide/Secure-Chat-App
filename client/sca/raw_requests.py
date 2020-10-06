@@ -41,13 +41,18 @@ class RawRequests:
         self.db.add_new_raw_request(d)
 
     def get_all_raw_requests(self) -> dict:
+        """
+        Queries the database to get all request we registered.
+
+        :return dict: A dictionary with all requests. The key is the ID of the request, its value is the raw request.
+        """
         return self.db.query_column(self.db.requests_table)
 
     def get_all_raw_requests_since(self, timestamp: int) -> dict:
         """
-        Takes a timestamp and returns a dictionary containing every request sent after it.
+        Takes a timestamp and returns a dictionary containing every request with their timestamp between now and then.
 
-        :param int timestamp:
+        :param int timestamp: A timestamp, as POSIX seconds.
         :return dict: Requests: each key is a unique identifier for the request, the value is its raw content.
         """
         all_requests = self.get_all_raw_requests()
@@ -57,6 +62,12 @@ class RawRequests:
         return all_requests
 
     def get_raw_request(self, request_id: str) -> dict:
+        """
+        Returns the request with passed ID.
+
+        :param str request_id: A request ID.
+        :return: A dictionary. It will be empty if the ID is unknown.
+        """
         if self.db.key_exists(self.db.requests_table, request_id):
             return self.db.query(self.db.requests_table, request_id)
         return {}
@@ -94,4 +105,9 @@ class RawRequestsDatabase(Database):
         super().__init__(db_name, {self.requests_table: dict})
 
     def add_new_raw_request(self, raw_request: dict) -> None:
+        """
+        Low-level method to add a request to the database.
+
+        :param dict raw_request: A raw request to store, as a dictionary.
+        """
         self.db.insert_dict(self.requests_table, raw_request)

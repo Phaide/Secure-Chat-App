@@ -31,12 +31,18 @@ class Encryption:
 
     @staticmethod
     def is_key_private(rsa_key: RSA.RsaKey) -> bool:
+        """
+        Wrapper used to verify a RSA key is private.
+
+        :param RSA.RsaKey rsa_key: A RSA key object.
+        :return bool: True if it is private, False otherwise.
+        """
         return rsa_key.has_private()
 
     @staticmethod
     def get_public_key_from_private_key(private_key: RSA.RsaKey) -> RSA.RsaKey:
         """
-        Takes a RSA private keys and returns a corresponding RSA public key.
+        Takes a RSA private key and returns its corresponding RSA public key.
 
         :param RSA.RsaKey private_key: A RSA private key.
         :return RSA.RsaKey: A matching RSA public key.
@@ -48,7 +54,7 @@ class Encryption:
     @staticmethod
     def construct_rsa_object(n: int, e: int, d: int = None, p: int = None, q: int = None) -> RSA.RsaKey:
         """
-        Construct and returns a RSA key.
+        Construct and returns a RSA key from passed values..
         If you want a public key, pass n and e.
         If you want a private key, also pass d, p and q.
 
@@ -57,7 +63,7 @@ class Encryption:
         :param int p: First factor.
         :param int q: Second factor.
         :param int d: Private exponent.
-        :return RSA.RsaKey: A RSA key, public or private depending on the arguments passed.
+        :return RSA.RsaKey: A RSA key object, public or private depending on the arguments passed.
         """
         # If d, p and q are set
         if d and p and q:
@@ -69,11 +75,12 @@ class Encryption:
     @staticmethod
     def import_rsa_private_key_from_file(file_location: str, passphrase: str or None = None):
         """
-        Opens a file and reads its content to get
+        Opens a file and reads its content to get the RSA private key stored.
+        Takes care of error handling.
 
         :param str file_location: Path to the file.
         :param str passphrase: The passphrase used to read the key.
-        :return: None or a RSA private key.
+        :return RSA.RsaKey|None: A RSA private key or None.
         """
         with open(file_location, "rb") as k:
             try:
@@ -89,6 +96,9 @@ class Encryption:
     @staticmethod
     def export_rsa_private_key_to_file(rsa_private_key: RSA.RsaKey, location: str, passphrase: str or None = None):
         """
+        Exports a RSA private to a file.
+        It can be encrypted, using the passed "passphrase".
+
         :param RSA.RsaKey rsa_private_key: A RSA private key.
         :param str location: Directory to which the private key should be exported to.
         :param str|None passphrase: A passphrase to encrypt the private key. Will be needed when importing it.
@@ -102,6 +112,8 @@ class Encryption:
     @staticmethod
     def export_rsa_public_key_to_file(rsa_private_key: RSA.RsaKey, location: str) -> None:
         """
+        Exports a RSA public key to a file.
+
         :param RSA.RsaKey rsa_private_key: A RSA private key.
         :param str location: Directory to which the public key should be exported to.
         """
@@ -128,7 +140,7 @@ class Encryption:
     @staticmethod
     def encrypt_asymmetric_raw(rsa_public: RSA.RsaKey, data: bytes) -> bytes:
         """
-        Encrypts data using RSA.
+        Encrypts data with RSA.
         Must be reversible with Encryption.decrypt_asymmetric_raw().
 
         :param RSA.RsaKey rsa_public: A RSA public key.
@@ -140,12 +152,12 @@ class Encryption:
     @staticmethod
     def decrypt_asymmetric_raw(rsa_private: RSA.RsaKey, en_data: bytes) -> bytes:
         """
-        Decrypts data using RSA.
+        Decrypts data with RSA.
         Must be reversible with Encryption.encrypt_asymmetric_raw().
 
         :param RSA.RsaKey rsa_private: A RSA private key.
         :param bytes en_data: Encrypted data, as bytes.
-        :return bytes: The decrypted data as bytes.
+        :return bytes: The decrypted data, as bytes.
 
         :raises: ValueError or KeyError: When the decryption fails.
         """
@@ -182,7 +194,7 @@ class Encryption:
     @staticmethod
     def get_rsa_signature(rsa_private: RSA.RsaKey, hash_object) -> bytes:
         """
-        Get a signature of a hash object.
+        Sign a hash using a RSA private key.
 
         :param RSA.RsaKey rsa_private:
         :param hash_object:
@@ -193,12 +205,13 @@ class Encryption:
     @staticmethod
     def is_signature_valid(rsa_public_key: RSA.RsaKey, hash_object: SHA256.SHA256Hash, sig: bytes) -> bool:
         """
-        Takes a MAC tag and verifies it is valid.
+        Verifies a signature is valid using a RSA public key.
+        The signature must originate from the RSA private key linked to this RSA public key.
 
         :param RSA.RsaKey rsa_public_key: A RSA public key object.
         :param SHA256.SHA256Hash hash_object: The hash object.
         :param bytes sig: A signature of the above hash.
-        :return: True if it can be trusted, False otherwise.
+        :return: True if it originates from the owner of the RSA public key.
         """
         try:
             pkcs1_15.new(rsa_public_key).verify(hash_object, sig)
@@ -210,7 +223,7 @@ class Encryption:
     @staticmethod
     def are_hash_and_sig_valid(data, rsa_public_key: RSA.RsaKey, original_hash: str, sig: str) -> bool:
         """
-        Verifies if a hash and a signature are valid.
+        Verifies if a hash and a signature are valid by regenerating the hash.
 
         :param data: Data, as any type, as long as it is iterable.
         :param RSA.RsaKey rsa_public_key: A RSA public key object.
@@ -232,10 +245,10 @@ class Encryption:
     @staticmethod
     def get_max_rsa_enc_msg_length(sha: int = 256) -> int:
         """
-        Returns the maximum length a message can have when doing RSA encryption.
+        Returns the maximum message length we can encrypt using RSA.
 
         :param int sha: Number of bits in the SHA algorithm used. Default is 256.
-        :return int: Corresponds to the max length a message can have to be encrypted with RSA.
+        :return int: Corresponds to the max length in bytes a message can have to be encrypted with RSA.
         """
         # Gets the keys length in bytes.
         keys_length = Config.rsa_keys_length / 8
@@ -324,18 +337,38 @@ class Encryption:
         return aes_key, nonce
 
     @staticmethod
-    def create_half_aes(length: int = Config.aes_keys_length / 2) -> bytes:
+    def create_half_aes_key(length: int = Config.aes_keys_length / 2) -> bytes:
+        """
+        Creates one half of AES key.
+        This is a fancy way of saying that we are generating random bytes.
+
+        :param int length: Length of the half AES key. Note that an AES256 key is 32 bytes, so half of that is 16.
+        :return bytes: A new, random half-key.
+        """
         return get_random_bytes(length)
 
     @staticmethod
-    def derive_nonce_from_aes_key(key: bytes):
+    def derive_nonce_from_aes_key(key: bytes) -> bytes:
+        """
+        Uses a AES key to derive a nonce.
+
+        :param bytes key: An AES key as bytes.
+        :return bytes: A nonce, as bytes.
+        """
         h = Encryption.hash_iterable(key)
-        # return h.hexdigest()[:len(key) / 2]
-        return h.hexdigest()[:Config.aes_keys_length / 2]
+        # return h.digest()[:len(key) / 2]
+        return h.digest()[:Config.aes_keys_length / 2]
 
     @staticmethod
     def verify_received_aes_key(key: dict, rsa_public_key: RSA.RsaKey) -> bool:
-        Utils.validate_fields(key, Structures.key_structure)
+        """
+        Verifies the AES key received as a dict and passed here is valid.
+
+        :param dict key: An AES key, as a dictionary.
+        :param RSA.RsaKey rsa_public_key: The RSA public key of the author.
+        :return bool: True if the information is a valid AES key, False otherwise.
+        """
+        Utils.validate_fields(key, Structures.aes_key_structure)
         value = key["value"]
         hash = key["hash"]
         sig = Encryption.deserialize_string(key["sig"])
@@ -384,8 +417,8 @@ class Encryption:
         :param bytes tag: Tag, as bytes.
         :return bytes: The decrypted data as bytes.
 
-        :raises: ValueError or KeyError: When the decryption fails.
-        :raises: ValueError or KeyError: When the tag is incorrect.
+        :raises ValueError|KeyError: When the decryption fails.
+        :raises ValueError|KeyError: When the tag is incorrect.
         """
         data = aes_key.decrypt_and_verify(en_data, tag)
         return data

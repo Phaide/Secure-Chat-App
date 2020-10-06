@@ -55,7 +55,6 @@ class Database:
     def __get_db(self, db_name: str) -> shelve.DbfilenameShelf:
         """
         Returns a DB object.
-        \
         Creates the subdirectories for the file if it doesn't exist already.
 
         :param str db_name: The relative database path (as the data will be stored in a file).

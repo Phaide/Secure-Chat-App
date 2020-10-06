@@ -19,7 +19,7 @@ class Structures:
         "last_seen": int
     }
 
-    key_structure = {
+    aes_key_structure = {
         "value": str,
         "hash": str,
         "sig": str
@@ -68,7 +68,7 @@ class Structures:
         "status": str,
         "data": {
             "key": {
-                key_structure
+                aes_key_structure
             },
             "author": node_structure,
             "recipient": node_structure

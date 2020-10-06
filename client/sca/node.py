@@ -136,21 +136,18 @@ class Node:
 
         name_parts = []
 
-        # First word, choose an adjective.
         adjectives = dictionary.dictionary["adjectives"]
+        animals = dictionary.dictionary["animals"]
+
+        # First word, choose an adjective.
         index = random.randrange(0, len(adjectives))
-        adjective = adjectives[index]
+        adjective = adjectives[index].capitalize()
         name_parts.append(adjective)
 
         # Second word, an animal name.
-        animals = dictionary.dictionary["animals"]
-        index = random.randrange(0, len(adjectives))
-        animal = animals[index]
+        index = random.randrange(0, len(animals))
+        animal = animals[index].capitalize()
         name_parts.append(animal)
-
-        for i, word in enumerate(name_parts):
-            # Capitalize the first letter of the word
-            name_parts[i] = word[0].upper() + word[1:]
 
         return "".join(name_parts)
 
@@ -236,6 +233,7 @@ class Node:
         :param bytes aes_key: The AES key.
         :param bytes nonce: The AES nonce.
         """
+        # self.aes is therefore a tuple
         self.aes = aes_key, nonce
 
     def get_aes_attr(self) -> tuple or None:
@@ -273,7 +271,7 @@ class Node:
         """
         Sets the Node's hash.
 
-        :param str hexdigest:
+        :param str hexdigest: A hexdigest as a string.
         """
         self.hash = hexdigest
 
